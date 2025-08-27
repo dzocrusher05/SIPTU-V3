@@ -1,0 +1,91 @@
+SIPTU.V3 — Catatan Perkembangan Proyek
+==================================================
+
+Tujuan dokumen
+- Menyimpan riwayat pengerjaan agar sesi berikutnya di Codex dapat melanjutkan konteks dengan cepat.
+- Menetapkan keputusan/desain sementara, daftar tugas, dan langkah pascapengerjaan.
+
+Komando penting (disepakati)
+- Jika Anda mengetik: "tolong simpan riwayat pengerjaan" → Saya akan memperbarui dokumen ini (docs/project_notes) dengan perubahan terbaru, ringkasan keputusan, dan next steps.
+
+Ringkasan arsitektur singkat (saat ini)
+- Laravel 11 + Inertia + Vue 3 + Naive UI + Tailwind.
+- Build via Vite. Dev dep penting: sass-embedded (untuk SCSS, saat ini boleh dibiarkan atau dihapus bila tidak diperlukan).
+- DB: MySQL (lihat .env). Migration otomatis dijalankan saat post-create, namun perubahan baru perlu migrate manual.
+
+Perubahan utama (timeline)
+
+[2025-08-27] Import Pegawai: kolom KGB boleh kosong
+- Controller: app/Http/Controllers/PegawaiController.php
+  - Saat impor CSV/XLSX: `jumlah_tahun_kgb` kosong → null; nilai di luar 1–10 → null.
+  - `tanggal_kgb_terakhir` kosong → null (sudah ada sebelumnya).
+- Migration: database/migrations/2025_08_27_010000_alter_pegawais_jumlah_tahun_kgb_nullable.php
+  - Mengubah kolom `pegawais.jumlah_tahun_kgb` menjadi nullable.
+- Tindakan pasca-perubahan: jalankan `php artisan migrate`.
+
+[2025-08-27] Tambah tautan Register
+- View: resources/views/auth/login.blade.php → Tambahkan link "Daftar" ke route `register` bila tersedia.
+
+[2025-08-27] (Dihapus) Halaman publik untuk Surat Tugas dan Peminjaman BMN
+- Iterasi yang sempat dibuat lalu DIHAPUS sesuai instruksi:
+  - Versi awal: akses publik dengan passcode → kemudian passcode dihapus.
+  - Peningkatan UI dengan SCSS animasi dan layout 2 kolom.
+  - Versi SPA (Vue/Inertia) untuk form lebih interaktif.
+  - Penyesuaian Peminjaman: dari tanggal kembali menjadi rentang tanggal (mulai–sampai), opsi lokasi tujuan.
+- File yang PERNAH dibuat lalu DIHAPUS:
+  - Controller: PublicSuratTugasController.php, PublicPeminjamanBmnController.php
+  - Views: resources/views/public/surat_tugas.blade.php, resources/views/public/peminjaman_bmn.blade.php
+  - SPA: resources/js/Pages/Public/SuratTugasForm.vue, .../PeminjamanBmnForm.vue
+  - SCSS: resources/css/public.scss (dihapus dan dicabut dari Vite input)
+  - Routes terkait `/public/*` di routes/web.php (dihapus)
+  - Config ENV terkait public form (passcode/lokasi) di config/app.php dan .env.example (dihapus)
+
+[2025-08-27] Workflow Surat Tugas (masih ADA)
+- Migration: database/migrations/2025_08_27_030000_alter_surat_tugas_workflow.php
+  - `surat_tugas.nomor_st` dan `tanggal_st` → nullable
+  - Tambah kolom `status` (default: `requested`) untuk mendukung alur permintaan → persetujuan.
+- Catatan: migration ini masih aktif di repo. Jika alur baru tidak membutuhkan ini, siapkan instruksi untuk rollback/penyesuaian.
+
+Ketergantungan/Tooling
+- Node dev dep: sass-embedded (dipasang saat menambah SCSS publik). Saat ini aman dibiarkan; bisa dihapus bila tidak dibutuhkan.
+- Build berhasil setelah pembersihan routing dan Vite inputs.
+
+Hal yang perlu diperhatikan / utang teknis
+- Sinkronisasi public vs admin: karena halaman publik dihapus, saat membangun ulang pastikan nama field dan validasi konsisten dengan modul admin agar tidak terjadi mismatch.
+- Migration workflow Surat Tugas (kolom `status`) ada di DB. Putuskan alur final sebelum lanjut implement persetujuan.
+
+Rencana/Next Steps (menunggu arahan)
+- Rancang ulang halaman publik (Surat Tugas & Peminjaman BMN) dari nol berdasarkan spesifikasi final (field, workflow, dan integrasi template Google Drive).
+- Tambah alur admin:
+  - Admin melengkapi Nomor ST & Tanggal ST untuk permintaan yang masuk, lalu kirim ke Kepala Balai.
+  - Kepala Balai setujui/tolak; log approver & waktu.
+  - Ekspor draft ST sesuai template di Google Drive (merge data: deskripsi, rentang tanggal, lokasi, daftar pegawai dengan NIP/Pangkat/Gol/Jabatan, daftar MAK).
+- Samakan istilah tanggal (Mulai/Selesai vs Pinjam/Sampai) di admin agar konsisten.
+
+Konvensi penulisan catatan ini
+- Setiap perubahan signifikan dicatat dalam blok tanggal [YYYY-MM-DD] dengan daftar file yang terpengaruh, ringkasan, dan tindakan pasca-perubahan (jika ada). 
+- Saat Anda perintahkan: "tolong simpan riwayat pengerjaan", saya akan:
+  1) Ringkas perubahan sejak entri terakhir.
+  2) Tambah catatan keputusan & TODO terkait.
+  3) Tandai dependensi/aksi pasca-perubahan (migrate/build) bila perlu.
+
+[2025-08-27] Peralihan ke SPA-only (Blade admin dihapus)
+- Keputusan: UI admin sepenuhnya via Inertia (SPA). Semua tampilan Blade admin dihapus (kecuali root Inertia `resources/views/app.blade.php` dan halaman auth).
+- Routing: resource route lama diarahkan ke rute `spa/*` agar pengguna selalu masuk ke SPA.
+- Pembersihan: hapus view Blade untuk bmn, pegawai, peminjaman_bmn, lpj, mak, it_assets, kgb_update, surat_tugas, dashboard, layouts admin.
+- Peminjaman BMN (SPA): form SPA diubah ke tgl mulai/sampai, kota tujuan, status melalui aksi Approve/Return; tabel menampilkan tujuan dan tombol aksi.
+- Tindakan pasca-perubahan: jalankan `php artisan migrate` (untuk kolom lokasi_tujuan + default status pending). Build front-end jika diperlukan.
+
+[2025-08-27] SPA-only — wiring final + cleanup
+- Routes SPA Peminjaman BMN:
+  - GET `spa/peminjaman-bmn`: data + options (BMN, Pegawai), kolom tujuan, mapping field untuk tabel.
+  - POST `spa/peminjaman-bmn`: simpan (status `pending`) dengan `tanggal_mulai`/`tanggal_sampai`, `lokasi_tujuan`.
+  - PUT `spa/peminjaman-bmn/{item}`: perbarui.
+  - DELETE `spa/peminjaman-bmn/{item}`: hapus.
+  - PUT `spa/peminjaman-bmn/{item}/approve` → `dipinjam`; `.../return` → `dikembalikan`.
+- SPA Peminjaman BMN page (resources/js/Pages/PeminjamanBmn/Index.vue):
+  - Form pakai `tanggal_mulai`/`tanggal_sampai`, tambah select kota tujuan, aksi Approve/Return per baris, kolom Tujuan.
+- Redirect legacy admin paths ke SPA: semua path resource (`bmn`, `pegawai`, `lpj`, `peminjaman-bmn`, `kgb-updates`, `surat-tugas`, `mak`, `it-assets`) diarahkan ke `/spa/*`.
+- Blade admin views dihapus massal: memastikan tidak ada UI non-SPA tersisa (auth tetap Blade untuk saat ini).
+- Pasca-perubahan: `php artisan migrate`, lalu `npm run dev` atau `npm run build`.
+- Next: jika diperlukan, tambah/store/update SPA routes eksplisit untuk modul lain (BMN, Pegawai, LPJ, MAK, IT Assets, KGB, Surat Tugas) agar operasi CRUD sepenuhnya via SPA. Pertimbangkan migrasi auth ke SPA.
